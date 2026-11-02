@@ -1,0 +1,73 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+dist-ssr/
+build/
+*.tsbuildinfo
+.vite/
+
+# Environment / secrets — never commit real values, use .env.example
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Vercel
+.vercel/
+
+# ML model weights — hosted on Hugging Face, not in git
+*.onnx
+*.onnx_data
+*.bin
+*.safetensors
+*.pt
+*.pth
+/models/
+scripts/models/.cache/
+
+# Local media used for testing (tracks, renders)
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.aac
+*.ogg
+*.mp4
+*.webm
+*.mov
+test-media/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test / coverage
+coverage/
+playwright-report/
+test-results/
+
+# Python (model scripts)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code local settings
+.claude/settings.local.json
