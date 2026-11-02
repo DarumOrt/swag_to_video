@@ -1,0 +1,163 @@
+/**
+ * Timeline — the central contract between modules.
+ *
+ * Producers: audio (`audio`), lyrics + ml (`lyrics`), ui (`accents`).
+ * Consumers: render (everything), export (via render), ui.
+ *
+ * Owned by the main session: propose changes there, do not edit from a topic session.
+ * Bump TIMELINE_SCHEMA_VERSION on any breaking change.
+ *
+ * Not literally JSON: feature arrays are typed arrays so the timeline can be passed to workers
+ * (structured clone / transfer) and stored in IndexedDB as-is.
+ * All times are seconds from the start of the track.
+ */
+
+export const TIMELINE_SCHEMA_VERSION = 1
+
+export interface Timeline {
+  version: typeof TIMELINE_SCHEMA_VERSION
+  audio: AudioAnalysis
+  /** null until the user adds lyrics. */
+  lyrics: Lyrics | null
+  accents: Accent[]
+}
+
+// ---------------------------------------------------------------------------
+// Audio
+// ---------------------------------------------------------------------------
+
+export interface AudioAnalysis {
+  durationSec: number
+  /** Sample rate of the decoded source. */
+  sampleRate: number
+  channelCount: number
+  /** Per-frame features, sampled at `features.rate`. */
+  features: FrameFeatures
+  rhythm: Rhythm
+  /** Regions where vocals are likely present (used to skip instrumental parts in recognition). */
+  vocalActivity: TimeRange[]
+}
+
+/**
+ * Features sampled on a fixed grid of `rate` frames per second, independent of the output fps.
+ * Value for time t: index = floor(t * rate), clamped to [0, frameCount - 1].
+ * Use `featureIndexAt` from this module.
+ */
+export interface FrameFeatures {
+  rate: number
+  frameCount: number
+
+  /** Log-frequency spectrum, row-major: frameCount × spectrum.binCount, values 0..1 (normalized dB). */
+  spectrum: {
+    binCount: number
+    minHz: number
+    maxHz: number
+    data: Float32Array
+  }
+
+  /** Loudness, one value per frame. rms/peak are linear 0..1, lufs is short-term LUFS (negative). */
+  rms: Float32Array
+  peak: Float32Array
+  lufsShortTerm: Float32Array
+
+  /** Band energies 0..1 per frame. low ≈ kick/bass, mid ≈ vocals, high ≈ hats/air. */
+  bands: {
+    low: Float32Array
+    mid: Float32Array
+    high: Float32Array
+  }
+
+  /** Stereo image per frame: correlation -1..1, width 0..1. */
+  stereo: {
+    correlation: Float32Array
+    width: Float32Array
+  }
+}
+
+export interface Rhythm {
+  bpm: number | null
+  /** Beat times, ascending. */
+  beats: Float32Array
+  /** Downbeat (bar start) times, ascending, subset of beats. */
+  downbeats: Float32Array
+  /** Full-band onset times, ascending. */
+  onsets: Float32Array
+  /** Onsets in the vocal band only, used to snap word starts. */
+  vocalOnsets: Float32Array
+}
+
+export interface TimeRange {
+  start: number
+  end: number
+}
+
+// ---------------------------------------------------------------------------
+// Lyrics
+// ---------------------------------------------------------------------------
+
+export type LyricsLanguage = 'ru' | 'en' | 'mixed'
+
+export interface Lyrics {
+  language: LyricsLanguage
+  lines: LyricLine[]
+}
+
+export interface LyricLine {
+  id: string
+  /** Optional section label, e.g. "Куплет 1", "Припев". */
+  section?: string
+  words: LyricWord[]
+}
+
+/** Where a word's timing came from — lets the editor show what needs checking. */
+export type TimingSource = 'whisper' | 'aligned' | 'interpolated' | 'snapped' | 'tap' | 'manual'
+
+export interface LyricWord {
+  id: string
+  /** Text as displayed (original casing and punctuation). */
+  text: string
+  /** null = not timed yet. */
+  start: number | null
+  end: number | null
+  /** 0..1, null when unknown (e.g. manual timing). */
+  confidence: number | null
+  timingSource: TimingSource | null
+}
+
+// ---------------------------------------------------------------------------
+// Accents (effects bound to words)
+// ---------------------------------------------------------------------------
+
+/** Built-in accent effects. The render session implements them; new ids go through the main session. */
+export type AccentEffectId =
+  | 'zoom-punch'
+  | 'glitch'
+  | 'palette-shift'
+  | 'particle-burst'
+  | 'fullscreen-word'
+  | 'slow-motion'
+  | 'invert'
+
+export interface Accent {
+  id: string
+  wordId: string
+  effect: AccentEffectId
+  /** Effect starts this many seconds before the word start (anticipation). */
+  preRollSec: number
+  /** Effect length in seconds from the word start. */
+  durationSec: number
+  /** 0..1 */
+  intensity: number
+  /** Effect-specific parameters, defined by the render session. */
+  params: Record<string, number | string | boolean>
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Index into per-frame feature arrays for time `timeSec`. */
+export function featureIndexAt(features: FrameFeatures, timeSec: number): number {
+  const index = Math.floor(timeSec * features.rate)
+  return Math.min(Math.max(index, 0), Math.max(features.frameCount - 1, 0))
+}

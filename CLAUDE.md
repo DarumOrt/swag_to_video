@@ -16,7 +16,33 @@
 - **Проект некоммерческий**: модели под CC BY-NC допустимы. Код под AGPL в проект не копируем.
 - Языки текстов: **RU и EN**.
 - Целевой браузер: Chrome/Edge (WebCodecs, WebGPU). Остальные — через feature-detect и фолбэки.
-- Vercel требует заголовки COOP/COEP (SharedArrayBuffer для многопоточного WASM) — задаются в `vercel.json`.
+- Заголовки COOP `same-origin` + COEP `credentialless` (SharedArrayBuffer для многопоточного WASM,
+  при этом загрузка с Hugging Face работает — проверено). Заданы в `vercel.json` и `vite.config.ts` — держать в синхроне.
+- Репозитории моделей на HF: `DarumOrt/whisper-small-timestamped-onnx`, `DarumOrt/htdemucs-onnx` (MIT),
+  `DarumOrt/aligner-onnx` (CC BY-NC 4.0).
+- Репозиторий кода: https://github.com/DarumOrt/SwagToVideo (публичный). Секреты — только в `.env` (gitignored).
+
+## Команды
+
+```bash
+npm run dev        # dev-сервер http://localhost:5173 (с COOP/COEP)
+npm run typecheck  # tsc -b
+npm run lint       # eslint
+npm test           # vitest
+npm run build      # прод-сборка в dist/
+```
+
+Перед отчётом о работе прогоняй `typecheck`, `lint` и `test`. Импорты внутри `src` — через алиас `@/`.
+
+## Общий контракт
+
+`src/shared/` — типы, которыми обмениваются модули:
+
+- `timeline.ts` — `Timeline` (аудио-признаки, ритм, текст со словами и таймкодами, акценты), `featureIndexAt`;
+- `output.ts` — `OutputSettings` (формат, разрешение, fps, контейнер), `DEFAULT_OUTPUT` (1080×1920, 30 fps, MP4);
+- `renderer.ts` — `FrameRenderer` (`init` / `renderFrame(N)` / `resize` / `dispose`) и правило детерминизма.
+
+Каждый модуль экспортирует свой публичный API из `src/<модуль>/index.ts`; другие модули импортируют только оттуда.
 
 ## Стек
 
@@ -40,14 +66,14 @@ WebGL2 / Three.js + GLSL, Canvas 2D · WebCodecs + mediabunny · transformers.js
 обсуждение проекта, архитектурные решения, контракты между модулями, git (commit/push в GitHub),
 ревью и сведение работы тематических сессий.
 
-| Сессия | Устав | Владеет |
-|---|---|---|
-| Аудио-анализ | `docs/sessions/audio-analysis.md` | `src/audio/` |
-| ML и Hugging Face | `docs/sessions/ml-models.md` | `src/ml/`, `scripts/models/`, `models.json` |
-| Текст и тайминги | `docs/sessions/lyrics-sync.md` | `src/lyrics/` |
-| Рендер-движок и визуализация | `docs/sessions/render-engine.md` | `src/render/`, `src/visualizers/`, `src/effects/` |
-| Фронтенд и UI | `docs/sessions/frontend-ui.md` | `src/app/`, `src/ui/`, стили |
-| Экспорт видео | `docs/sessions/video-export.md` | `src/export/` |
+| Сессия                       | Устав                             | Владеет                                           |
+| ---------------------------- | --------------------------------- | ------------------------------------------------- |
+| Аудио-анализ                 | `docs/sessions/audio-analysis.md` | `src/audio/`                                      |
+| ML и Hugging Face            | `docs/sessions/ml-models.md`      | `src/ml/`, `scripts/models/`, `models.json`       |
+| Текст и тайминги             | `docs/sessions/lyrics-sync.md`    | `src/lyrics/`                                     |
+| Рендер-движок и визуализация | `docs/sessions/render-engine.md`  | `src/render/`, `src/visualizers/`, `src/effects/` |
+| Фронтенд и UI                | `docs/sessions/frontend-ui.md`    | `src/app/`, `src/ui/`, стили                      |
+| Экспорт видео                | `docs/sessions/video-export.md`   | `src/export/`                                     |
 
 Общие файлы — **`src/shared/`** (типы, схема `timeline.json`), `package.json`, `vite.config.ts`,
 `vercel.json`, `CLAUDE.md`, `docs/` — принадлежат главной сессии.
