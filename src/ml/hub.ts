@@ -9,6 +9,7 @@ import { env } from '@huggingface/transformers'
 // Self-hosted ONNX Runtime WASM (transformers.js would otherwise fetch it from cdn.jsdelivr.net).
 import ortWasmFactoryUrl from 'onnxruntime-web/ort-wasm-simd-threaded.asyncify.mjs?url'
 import ortWasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url'
+import { verifyingFetch } from './integrity'
 import { mirroredModel } from './manifest'
 
 const HF_HOST = 'https://huggingface.co/'
@@ -39,6 +40,7 @@ export function configureHub(): void {
   env.allowRemoteModels = true
   env.allowLocalModels = false
   env.useBrowserCache = true
+  env.fetch = verifyingFetch(env.fetch)
   const wasm = env.backends.onnx.wasm
   if (wasm) {
     wasm.wasmPaths = {

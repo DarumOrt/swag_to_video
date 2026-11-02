@@ -50,6 +50,8 @@ export const DTYPE_PRESETS: Record<string, WhisperDtypes> = {
   'enc fp16 / dec q4f16': { encoder_model: 'fp16', decoder_model_merged: 'q4f16' },
   'enc q8 / dec q8': { encoder_model: 'q8', decoder_model_merged: 'q8' },
   'enc fp32 / dec q8': { encoder_model: 'fp32', decoder_model_merged: 'q8' },
+  /** For large-v3-turbo: its fp32/fp16 encoders are 2.5 / 1.3 GB. */
+  'enc q4f16 / dec q4f16': { encoder_model: 'q4f16', decoder_model_merged: 'q4f16' },
 }
 
 export function defaultDtypes(device: WhisperDevice): WhisperDtypes {

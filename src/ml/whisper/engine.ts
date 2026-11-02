@@ -275,7 +275,11 @@ export class WhisperEngine {
     } as Parameters<WhisperForConditionalGeneration['generate']>[0])) as unknown as {
       sequences: Tensor
       token_timestamps: Tensor
+      past_key_values?: { dispose(): Promise<void> }
     }
+    // return_token_timestamps implies return_dict_in_generate, which keeps the KV cache alive and hands
+    // it to us; on WebGPU those are GPU buffers that leak (device lost after a few windows) unless freed.
+    await output.past_key_values?.dispose()
 
     const sequence = (output.sequences.tolist()[0] as bigint[]).map(Number)
     const times = output.token_timestamps.tolist()[0] as number[]

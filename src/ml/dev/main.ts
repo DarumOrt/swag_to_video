@@ -268,7 +268,13 @@ Object.assign(window, {
       if (opts.len !== undefined) $<HTMLInputElement>('len').value = String(opts.len)
       if (opts.url && opts.url !== audioName) await loadUrl(opts.url)
       const row = await run()
-      return { ...summary(row), text: row.result.segments.map((s) => s.text).join(' / ') }
+      return {
+        ...summary(row),
+        text: row.result.segments.map((s) => s.text).join(' / '),
+        words: row.result.words,
+        stats: row.result.stats,
+        segmentFlags: row.result.segments.flatMap((s) => s.flags),
+      }
     },
     markdown,
     runs,
