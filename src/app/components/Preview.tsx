@@ -90,7 +90,7 @@ function PreviewCanvas() {
         key={`${width}x${height}@${fps}`}
         ref={canvasRef}
         className="block h-full w-full"
-        aria-label={t.preview.stub}
+        aria-label={t.preview.canvas}
       />
       {!timeline && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-xs text-muted">

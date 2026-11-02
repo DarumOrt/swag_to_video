@@ -64,7 +64,7 @@ function StatusLine({ status, error }: { status: string; error: string | null })
       <p role="status" className="flex items-start gap-2 text-xs text-muted">
         <CircleCheck aria-hidden className="mt-px size-3.5 shrink-0 text-accent" />
         <span>
-          <span className="text-fg">{t.export.done}.</span> {t.export.doneStub}
+          <span className="text-fg">{t.export.done}.</span> {t.export.doneSaved}
         </span>
       </p>
     )

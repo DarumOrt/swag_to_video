@@ -51,7 +51,7 @@ export async function startExport() {
   setExport({ status: 'running', progress: 0, error: null })
   let lastPushed = 0
   try {
-    const blob = await exportVideo({
+    const file = await exportVideo({
       timeline,
       output,
       createRenderer,
@@ -65,8 +65,7 @@ export async function startExport() {
       },
     })
     setExport({ status: 'done', progress: 1 })
-    if (blob)
-      downloadBlob(blob, `${baseName(useAppStore.getState().track?.name)}.${output.container}`)
+    downloadBlob(file.blob, `${baseName(useAppStore.getState().track?.name)}.${file.fileExtension}`)
   } catch (error) {
     if (abort.signal.aborted) setExport({ status: 'cancelled' })
     else {
