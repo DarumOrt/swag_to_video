@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { matchesAccept } from '@/ui/accept'
-import { formatBytes, formatTime } from './format'
+import { formatBytes, formatTime, formatTimeInput, parseTimeInput } from './format'
 
 describe('formatTime', () => {
   it('formats minutes and hours', () => {
@@ -13,6 +13,21 @@ describe('formatTime', () => {
     expect(formatTime(65.97, true)).toBe('1:05.9')
     expect(formatTime(Number.NaN)).toBe('0:00')
     expect(formatTime(-3)).toBe('0:00')
+  })
+})
+
+describe('time inputs', () => {
+  it('round-trips m:ss.cc', () => {
+    expect(formatTimeInput(65.37)).toBe('1:05.37')
+    expect(parseTimeInput('1:05.37')).toBeCloseTo(65.37)
+  })
+
+  it('accepts seconds and commas, rejects junk', () => {
+    expect(parseTimeInput('12,5')).toBeCloseTo(12.5)
+    expect(parseTimeInput('90')).toBe(90)
+    expect(parseTimeInput('1:75')).toBeNull()
+    expect(parseTimeInput('abc')).toBeNull()
+    expect(parseTimeInput('')).toBeNull()
   })
 })
 

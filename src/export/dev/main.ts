@@ -3,8 +3,26 @@
  * Also exposes `window.runExport(params)` for scripted benchmarks.
  */
 
-import { DEFAULT_OUTPUT, type FrameRate, type OutputSettings, type VideoContainer } from '@/shared'
-import { checkExportSupport, exportVideo, type ExportResult } from '../index'
+import { analyzeAudio } from '@/audio'
+import { createFakeTimeline, SceneRenderer } from '@/render'
+import {
+  DEFAULT_OUTPUT,
+  TIMELINE_SCHEMA_VERSION,
+  type Timeline,
+  type FrameRate,
+  type OutputSettings,
+  type VideoContainer,
+} from '@/shared'
+import {
+  checkExportSupport,
+  exportVideo,
+  exportVideoInWorker,
+  pickSaveTarget,
+  type ExportProgress,
+  type ExportResult,
+  type PcmAudio,
+  type ResolvedExportConfig,
+} from '../index'
 import { stubTimeline } from './stubTimeline'
 import { syntheticAudio } from './syntheticAudio'
 import { TestFrameRenderer } from './testRenderer'
@@ -17,11 +35,44 @@ interface RunParams {
   durationSec: number
   preferHardware: boolean
   transparent?: boolean
-  /** Ask for a file and stream into it (File System Access). */
-  stream?: boolean
+  /** Stream into a picked file ('file') or OPFS ('opfs') instead of an in-memory Blob. */
+  save?: 'file' | 'opfs'
+  /** Run in the export worker (always SceneRenderer). */
+  worker?: boolean
+  /** 'test' = TestFrameRenderer (cheap), 'scene' = the real SceneRenderer with the default scene. */
+  renderer?: 'test' | 'scene'
+  /** URL of a real track (e.g. /test-media/x.mp3): analyzed with @/audio, exported with SceneRenderer. */
+  track?: string
+  /** Encoder tuning experiments: patched into the resolved VideoEncoderConfig. */
+  encoder?: Partial<VideoEncoderConfig>
 }
 
-type RunSummary = ExportResult['stats'] & { codec: string; hardware: boolean; url: string | null }
+/** Analyzed real tracks, cached by URL so repeated benchmark runs skip decoding. */
+const trackCache = new Map<string, { timeline: Timeline; pcm: PcmAudio }>()
+
+async function loadTrack(url: string) {
+  const cached = trackCache.get(url)
+  if (cached) return cached
+  const blob = await fetch(url).then((r) => r.blob())
+  const { analysis, pcm } = await analyzeAudio(blob)
+  const timeline: Timeline = {
+    version: TIMELINE_SCHEMA_VERSION,
+    audio: analysis,
+    lyrics: null,
+    accents: [],
+  }
+  const loaded = { timeline, pcm: { sampleRate: pcm.sampleRate, channels: pcm.channels } }
+  trackCache.set(url, loaded)
+  return loaded
+}
+
+type RunSummary = ExportResult['stats'] & {
+  save: string
+  worker: boolean
+  codec: string
+  hardware: boolean
+  url: string | null
+}
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 const log = (text: string) => {
@@ -38,7 +89,9 @@ function readParams(): RunParams {
     durationSec: Number($<HTMLInputElement>('duration').value),
     preferHardware: $<HTMLInputElement>('hw').checked,
     transparent: $<HTMLInputElement>('transparent').checked,
-    stream: $<HTMLInputElement>('stream').checked,
+    save: ($<HTMLSelectElement>('save').value || undefined) as RunParams['save'],
+    worker: $<HTMLInputElement>('worker').checked,
+    renderer: $<HTMLSelectElement>('renderer').value as 'test' | 'scene',
   }
 }
 
@@ -62,34 +115,53 @@ async function runExport(p: RunParams): Promise<RunSummary> {
   $<HTMLButtonElement>('run').disabled = true
   const progressEl = $<HTMLProgressElement>('progress')
   try {
-    let writable: FileSystemWritableFileStream | undefined
-    if (p.stream) {
-      const picker = window as unknown as {
-        showSaveFilePicker(o: object): Promise<FileSystemFileHandle>
-      }
-      const handle = await picker.showSaveFilePicker({
-        suggestedName: `export-test.${p.container}`,
+    // First await of the click handler: the file picker needs the user gesture.
+    const save = p.save
+      ? await pickSaveTarget(`export-${p.width}x${p.height}-${p.fps}`, p.container, {
+          prefer: p.save,
+        })
+      : null
+    const track = p.track ? await loadTrack(p.track) : null
+    let tuned: ResolvedExportConfig | undefined
+    if (p.encoder) {
+      const audioSpec = track
+        ? { sampleRate: track.pcm.sampleRate, numberOfChannels: track.pcm.channels.length }
+        : { sampleRate: 48_000, numberOfChannels: 2 }
+      const support = await checkExportSupport(toOutput(p), audioSpec, {
+        preferHardware: p.preferHardware,
       })
-      writable = await handle.createWritable()
+      if (!support.ok) throw new Error(support.reason)
+      tuned = support.config
+      tuned.video.config = { ...tuned.video.config, ...p.encoder }
     }
-    const result = await exportVideo({
-      renderer: new TestFrameRenderer(),
-      timeline: stubTimeline(p.durationSec),
+    const common = {
+      timeline:
+        track?.timeline ??
+        (p.renderer === 'scene'
+          ? createFakeTimeline({ durationSec: p.durationSec })
+          : stubTimeline(p.durationSec)),
       scene: null,
       output: toOutput(p),
-      audio: syntheticAudio(p.durationSec),
+      audio: track?.pcm ?? syntheticAudio(p.durationSec),
       durationSec: p.durationSec,
       preferHardware: p.preferHardware,
-      writable,
+      config: tuned,
+      file: save?.file ?? null,
       signal: controller.signal,
-      onProgress: (pr) => {
+      onProgress: (pr: ExportProgress) => {
         progressEl.value = pr.fraction
         $('status').textContent =
           `${pr.frame}/${pr.totalFrames} · ${pr.framesPerSec.toFixed(1)} кадр/с · ` +
           `осталось ${pr.etaSec === null ? '…' : `${pr.etaSec.toFixed(1)} с`}`
       },
-    })
-    if (writable) await writable.close()
+    }
+    // The worker always renders with SceneRenderer.
+    const result = p.worker
+      ? await exportVideoInWorker(common)
+      : await exportVideo({
+          ...common,
+          renderer: p.renderer === 'scene' || track ? new SceneRenderer() : new TestFrameRenderer(),
+        })
 
     const { stats, config } = result
     const row = document.createElement('tr')
@@ -112,8 +184,9 @@ async function runExport(p: RunParams): Promise<RunSummary> {
     }
     const cell = document.createElement('td')
     let url: string | null = null
-    if (result.blob) {
-      url = URL.createObjectURL(result.blob)
+    const fileBlob = save?.kind === 'opfs' ? await save.file!.getFile() : result.blob
+    if (fileBlob) {
+      url = URL.createObjectURL(fileBlob)
       const a = document.createElement('a')
       a.href = url
       a.download = `export-${p.width}x${p.height}-${p.fps}${result.fileExtension}`
@@ -121,12 +194,19 @@ async function runExport(p: RunParams): Promise<RunSummary> {
       cell.append(a)
       $<HTMLVideoElement>('video').src = url
     } else {
-      cell.textContent = 'записано'
+      cell.textContent = `записано в ${save?.name}`
     }
     row.append(cell)
     $('results').append(row)
     log(`Готово: ${result.mimeType}`)
-    return { ...stats, codec: config.video.config.codec, hardware: config.video.hardware, url }
+    return {
+      ...stats,
+      save: save?.kind ?? 'memory',
+      worker: !!p.worker,
+      codec: config.video.config.codec,
+      hardware: config.video.hardware,
+      url,
+    }
   } catch (error) {
     log(error instanceof Error ? `${error.name}: ${error.message}` : String(error))
     throw error

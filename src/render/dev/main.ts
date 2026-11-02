@@ -180,5 +180,11 @@ scrub.oninput = () => {
 $<HTMLButtonElement>('determinism').onclick = () => void checkDeterminism()
 $<HTMLButtonElement>('worker').onclick = () => void checkWorker()
 
+// Frame-cost benchmark hook for e2e/render/frame-cost.spec.ts.
+Object.assign(window, {
+  renderBench: async (options?: Parameters<typeof import('./bench').runFrameCostBench>[0]) =>
+    (await import('./bench')).runFrameCostBench(options),
+})
+
 await setup()
 requestAnimationFrame(tick)

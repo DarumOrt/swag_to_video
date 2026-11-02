@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useLyricsStore } from './lyricsStore'
 import { playback } from './playback'
 import { useAppStore } from './store'
 
@@ -18,6 +19,8 @@ export function useShortcuts() {
     function onKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return
       if (ownsKeys(event.target)) return
+      // Tap sync owns the keyboard while it runs.
+      if (useLyricsStore.getState().tap) return
       const { track, export: exportState } = useAppStore.getState()
       if (!track || exportState.status === 'running') return
 

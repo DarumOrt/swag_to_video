@@ -1,5 +1,5 @@
 import { analyzeAudio, type DecodedAudio } from '@/audio'
-import { TIMELINE_SCHEMA_VERSION, type Timeline } from '@/shared'
+import { TIMELINE_SCHEMA_VERSION, type Lyrics, type Timeline } from '@/shared'
 
 export type AnalysisPhase = 'decoding' | 'analyzing'
 
@@ -8,6 +8,14 @@ const pcmByTimeline = new WeakMap<Timeline, DecodedAudio>()
 
 export function pcmFor(timeline: Timeline): DecodedAudio | undefined {
   return pcmByTimeline.get(timeline)
+}
+
+/** New timeline with other lyrics; keeps the PCM link so export still has the audio. */
+export function withLyrics(timeline: Timeline, lyrics: Lyrics | null): Timeline {
+  const next: Timeline = { ...timeline, lyrics }
+  const pcm = pcmByTimeline.get(timeline)
+  if (pcm) pcmByTimeline.set(next, pcm)
+  return next
 }
 
 export async function analyzeTrack(

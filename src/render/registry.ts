@@ -1,5 +1,6 @@
 import { SpectrumBarsLayer } from '@/visualizers'
 import { BackgroundLayer } from './layers/background'
+import { LyricsLayer } from './layers/lyrics'
 import { TextLayer } from './layers/text'
 import type { LayerSpec } from './scene'
 import type { Layer } from './types'
@@ -12,5 +13,7 @@ export function createLayer(spec: LayerSpec): Layer {
       return new SpectrumBarsLayer(spec)
     case 'text':
       return new TextLayer(spec)
+    case 'lyrics':
+      return new LyricsLayer(spec)
   }
 }

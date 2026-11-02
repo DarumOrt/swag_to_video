@@ -3,11 +3,11 @@
  *
  * Line tags `[mm:ss.xx]` mark the line start (several tags = the line repeats).
  * Word tags `<mm:ss.xx>` mark word starts; a tag with no text after it marks the end of the previous word.
- * Imported tag times are human-made, so tagged words get `timingSource: 'manual'`;
+ * Tagged words get `timingSource: 'imported'`;
  * words between tags are spread by syllables and marked 'interpolated'.
  */
 import type { LyricLine, LyricWord, Lyrics, LyricsLanguage } from '@/shared'
-import { buildLine, createLineIdFactory, flattenWords, withWords } from './model'
+import { buildLine, createLineIdFactory, flattenWords, stanzaHeader, withWords } from './model'
 import { detectLanguage, parseSectionLabel, tokenizeLine } from './text'
 import {
   DEFAULT_TIMING,
@@ -65,6 +65,7 @@ interface Entry {
   firstTime: number | null
   content: string
   section: string | undefined
+  stanzaStart: boolean
 }
 
 export function parseLrc(text: string, options: LrcParseOptions = {}): LrcParseResult {
@@ -72,11 +73,13 @@ export function parseLrc(text: string, options: LrcParseOptions = {}): LrcParseR
   const metadata: Record<string, string> = {}
   const entries: Entry[] = []
   let section: string | undefined
+  let stanzaStart = true
 
   for (const raw of text.split(/\r\n|\r|\n/)) {
     let rest = raw.trim()
     if (!rest) {
       section = undefined
+      stanzaStart = true
       continue
     }
     const times: number[] = []
@@ -93,12 +96,17 @@ export function parseLrc(text: string, options: LrcParseOptions = {}): LrcParseR
       const label = parseSectionLabel(rest)
       if (label !== null) {
         section = label
+        stanzaStart = true
         continue
       }
-      entries.push({ time: null, firstTime: null, content: rest, section })
+      entries.push({ time: null, firstTime: null, content: rest, section, stanzaStart })
+      stanzaStart = false
       continue
     }
-    for (const time of times) entries.push({ time, firstTime: times[0]!, content: rest, section })
+    for (const time of times) {
+      entries.push({ time, firstTime: times[0]!, content: rest, section, stanzaStart })
+    }
+    stanzaStart = false
   }
 
   // LRC offset in ms: positive shows lyrics earlier.
@@ -125,6 +133,7 @@ export function parseLrc(text: string, options: LrcParseOptions = {}): LrcParseR
       nextId(words.map((w) => w.text).join(' ')),
       words.map((w) => w.text),
       entry.section,
+      entry.stanzaStart,
     )
     line.words = line.words.map((w, k) => ({ ...w, ...words[k]!, id: w.id }))
     lines.push(line)
@@ -205,7 +214,7 @@ function buildLrcWords(
         text: segment.words[k]!,
         start: slot.start,
         end: slot.end,
-        timingSource: k === 0 ? 'manual' : 'interpolated',
+        timingSource: k === 0 ? 'imported' : 'interpolated',
       }),
     )
   })
@@ -217,7 +226,10 @@ export interface LrcExportOptions {
   enhanced?: boolean
   /** In enhanced mode, also write an end tag when a word ends before the next one starts. */
   wordEndTags?: boolean
-  /** Write "[Label]" lines at section changes (not standard LRC, but most players ignore them). */
+  /**
+   * Write blank lines between stanzas and "[Label]" lines at section changes
+   * (not standard LRC, but most players ignore them).
+   */
   includeSections?: boolean
   /** Header tags, e.g. { ar: 'Artist', ti: 'Title' }. */
   metadata?: Record<string, string>
@@ -226,13 +238,8 @@ export interface LrcExportOptions {
 export function toLrc(lyrics: Lyrics, options: LrcExportOptions = {}): string {
   const out: string[] = []
   for (const [key, value] of Object.entries(options.metadata ?? {})) out.push(`[${key}:${value}]`)
-  let section: string | undefined
   lyrics.lines.forEach((line, i) => {
-    if (options.includeSections && line.section !== section) {
-      if (i > 0) out.push('')
-      if (line.section !== undefined) out.push(`[${line.section}]`)
-      section = line.section
-    }
+    if (options.includeSections) out.push(...stanzaHeader(line, i, lyrics.lines[i - 1]?.section))
     const first = line.words[0]
     const prefix = first?.start != null ? `[${formatLrcTime(first.start)}]` : ''
     out.push(

@@ -38,9 +38,15 @@ export function untimedWord(id: string, text: string): LyricWord {
 }
 
 /** Builds an untimed line from display words. */
-export function buildLine(id: string, words: string[], section?: string): LyricLine {
+export function buildLine(
+  id: string,
+  words: string[],
+  section?: string,
+  stanzaStart = false,
+): LyricLine {
   const line: LyricLine = { id, words: words.map((text, i) => untimedWord(wordId(id, i), text)) }
   if (section !== undefined) line.section = section
+  if (stanzaStart) line.stanzaStart = true
   return line
 }
 
@@ -52,39 +58,57 @@ export interface ParseTextOptions {
 /**
  * Plain lyrics → untimed `Lyrics`.
  * A section header ("[Припев]", "Куплет 2:") labels the following lines up to the next blank line.
+ * The first line, and the first line after a blank line or a header, gets `stanzaStart`.
  * Lines without singable content are dropped.
  */
 export function parseLyricsText(text: string, options: ParseTextOptions = {}): Lyrics {
   const nextId = createLineIdFactory()
   const lines: LyricLine[] = []
   let section: string | undefined
+  let stanzaStart = true
   for (const raw of text.split(/\r\n|\r|\n/)) {
     const trimmed = raw.trim()
     if (!trimmed) {
       section = undefined
+      stanzaStart = true
       continue
     }
     const label = parseSectionLabel(trimmed)
     if (label !== null) {
       section = label
+      stanzaStart = true
       continue
     }
     const words = tokenizeLine(trimmed)
-    if (words.length) lines.push(buildLine(nextId(words.join(' ')), words, section))
+    if (!words.length) continue
+    lines.push(buildLine(nextId(words.join(' ')), words, section, stanzaStart))
+    stanzaStart = false
   }
   return { language: options.language ?? detectLanguage(text), lines }
 }
 
-/** `Lyrics` → plain text; section changes become a blank line plus "[Label]". */
+/**
+ * Source lines to write before `line` when exporting: a blank line at a stanza or section change,
+ * then "[Label]" if the section changed to a labeled one.
+ */
+export function stanzaHeader(
+  line: LyricLine,
+  index: number,
+  prevSection: string | undefined,
+): string[] {
+  const sectionChanged = line.section !== prevSection
+  const out: string[] = []
+  if (index > 0 && (line.stanzaStart || sectionChanged)) out.push('')
+  if (line.section !== undefined && (sectionChanged || line.stanzaStart))
+    out.push(`[${line.section}]`)
+  return out
+}
+
+/** `Lyrics` → plain text; stanzas are separated by blank lines, sections get "[Label]". */
 export function lyricsToText(lyrics: Lyrics): string {
   const out: string[] = []
-  let section: string | undefined
   lyrics.lines.forEach((line, i) => {
-    if (line.section !== section) {
-      if (i > 0) out.push('')
-      if (line.section !== undefined) out.push(`[${line.section}]`)
-      section = line.section
-    }
+    out.push(...stanzaHeader(line, i, lyrics.lines[i - 1]?.section))
     out.push(line.words.map((w) => w.text).join(' '))
   })
   return out.join('\n')

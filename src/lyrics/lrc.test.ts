@@ -23,7 +23,7 @@ describe('parseLrc', () => {
     expect(lyrics.lines).toHaveLength(2)
     const [first, second] = flattenWords(lyrics).map((r) => r.word)
     expect(first!.start).toBe(1)
-    expect(first!.timingSource).toBe('manual')
+    expect(first!.timingSource).toBe('imported')
     expect(second!.timingSource).toBe('interpolated')
     expect(second!.end).toBeLessThanOrEqual(3.5)
     expectPlayable(lyrics)
@@ -53,9 +53,9 @@ describe('parseLrc', () => {
       '[00:01.00]<00:01.00>Neon <00:01.40>lights <00:02.00>falling <00:03.00>',
     )
     expect(timesOf(lyrics)).toEqual([
-      ['Neon', 1, 1.4, 'manual'],
-      ['lights', 1.4, 2, 'manual'],
-      ['falling', 2, 3, 'manual'],
+      ['Neon', 1, 1.4, 'imported'],
+      ['lights', 1.4, 2, 'imported'],
+      ['falling', 2, 3, 'imported'],
     ])
   })
 

@@ -55,6 +55,24 @@
       <label><input id="mono16k" type="checkbox" /> также 16 кГц моно</label>
       <button id="cancel" disabled>Отмена</button>
       <button id="rerun" disabled>Повторить анализ (детерминизм)</button>
+      <label><input id="details" type="checkbox" checked /> детали (вокальные кривые)</label>
+      <label
+        >Щелчки
+        <select id="clicks">
+          <option value="off">выкл</option>
+          <option value="beats">биты (даунбит выше)</option>
+          <option value="onsets">onsets</option>
+          <option value="vocal">vocal onsets</option>
+        </select></label
+      >
+      <label
+        >Лупа
+        <select id="zoom">
+          <option value="5">5 с</option>
+          <option value="10" selected>10 с</option>
+          <option value="20">20 с</option>
+        </select></label
+      >
     </fieldset>
     <p id="stats">Выберите трек (например, из test-media/).</p>
     <audio id="audio" controls></audio>
@@ -64,9 +82,11 @@
       ><span style="color: #60a5fa">— mid</span><span style="color: #c084fc">— high</span
       ><span style="color: #f472b6">▮ биты / даунбиты</span
       ><span style="color: #fb923c">▮ onsets</span><span style="color: #22d3ee">▮ vocal onsets</span
-      ><span style="color: #a3e635">▬ вокал</span>
+      ><span style="color: #a3e635">▬ вокал</span
+      ><span style="color: #fde047">— гармоничность вокальной полосы (порог пунктиром)</span>
     </div>
     <canvas id="overview" width="1200" height="520"></canvas>
+    <canvas id="zoomView" width="1200" height="420"></canvas>
     <canvas id="live" width="1200" height="260"></canvas>
     <div id="log"></div>
     <script type="module" src="/src/audio/dev/main.ts"></script>

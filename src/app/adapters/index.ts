@@ -5,7 +5,18 @@
 import { SceneRenderer } from '@/render'
 import type { FrameRenderer } from '@/shared'
 
-export { analyzeTrack, type AnalysisPhase } from './analysis'
+export { analyzeTrack, withLyrics, type AnalysisPhase } from './analysis'
+export {
+  MAX_QUALITY_WARNING,
+  estimateDownload,
+  transcribe,
+  useFakeRecognizer,
+  type DownloadEstimate,
+  type RecognizeLanguage,
+  type RecognizeProgress,
+  type TranscribeJob,
+  type TranscribeQuality,
+} from './transcribe'
 export { exportVideo, type ExportedFile, type ExportJob } from './exporter'
 
 export function createRenderer(): FrameRenderer {

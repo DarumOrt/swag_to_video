@@ -30,6 +30,7 @@ import {
   type PcmAudio,
 } from './audio'
 import { audioSamplesUntilFrameEnd, frameDurationUs, frameTimestampUs, isKeyFrame } from './codecs'
+import { guardWritable } from './guardWritable'
 import { checkExportSupport, outputChannelCount, type ResolvedExportConfig } from './support'
 
 export interface ExportProgress {
@@ -53,6 +54,23 @@ export interface ExportStats {
   /** Export speed relative to real time (2 = twice as fast as playback). */
   realtimeFactor: number
   bytes: number
+  /** Wall-clock time per phase of the frame loop, ms (for profiling). */
+  phasesMs: ExportPhases
+}
+
+export interface ExportPhases {
+  /** renderer.renderFrame */
+  render: number
+  /** new VideoFrame(canvas) + encode() call (includes GPU readback of the canvas). */
+  capture: number
+  /** Waiting for the video encoder queue to drain. */
+  encoderWait: number
+  /** Waiting for the muxer / file writer. */
+  muxerWait: number
+  /** Building and encoding audio chunks. */
+  audio: number
+  /** flush + finalize at the end. */
+  finalize: number
 }
 
 export interface ExportResult {
@@ -76,8 +94,14 @@ export interface ExportOptions {
   /**
    * Stream the file here instead of building a Blob (File System Access `FileSystemWritableFileStream`
    * or OPFS writable). Required for long 4K exports to stay within memory.
+   * exportVideo takes ownership: closes (commits) it on success, aborts it on failure or cancel.
    */
   writable?: WritableStream<StreamTargetChunk>
+  /**
+   * Alternative to `writable`: a file handle (from `pickSaveTarget`) that exportVideo opens itself.
+   * Unlike a stream, a handle can be sent to a worker.
+   */
+  file?: FileSystemFileHandle | null
   /** Pre-resolved config from `checkExportSupport` (skips the detection step). */
   config?: ResolvedExportConfig
   preferHardware?: boolean
@@ -140,12 +164,18 @@ export async function exportVideo(options: ExportOptions): Promise<ExportResult>
     : 0
 
   // --- Muxer ---------------------------------------------------------------------------------
-  const target: Target = options.writable
-    ? new StreamTarget(options.writable, { chunked: true })
+  // mediabunny closes its stream on finalize *and* on cancel; closing a file stream commits it, so a
+  // cancelled export would leave a truncated file. The guard turns close-after-failure into abort().
+  let succeeded = false
+  const writable =
+    options.writable ?? (options.file ? await options.file.createWritable() : undefined)
+  const guarded = writable ? guardWritable(writable, () => succeeded) : null
+  const target: Target = guarded
+    ? new StreamTarget(guarded.stream, { chunked: true })
     : new BufferTarget()
   const format =
     settings.container === 'mp4'
-      ? new Mp4OutputFormat({ fastStart: options.writable ? false : 'in-memory' })
+      ? new Mp4OutputFormat({ fastStart: guarded ? false : 'in-memory' })
       : new WebMOutputFormat()
   const muxer = new Output({ format, target })
   const videoSource = new EncodedVideoPacketSource(video.codec)
@@ -251,6 +281,22 @@ export async function exportVideo(options: ExportOptions): Promise<ExportResult>
       })
     }
 
+    const phases: ExportPhases = {
+      render: 0,
+      capture: 0,
+      encoderWait: 0,
+      muxerWait: 0,
+      audio: 0,
+      finalize: 0,
+    }
+    let mark = performance.now()
+    /** Adds the time since the previous lap to `phase`. */
+    const lap = (phase: keyof ExportPhases) => {
+      const now = performance.now()
+      phases[phase] += now - mark
+      mark = now
+    }
+
     const throwIfStopped = () => {
       if (signal?.aborted) throw abortError()
       if (failure) throw failure
@@ -259,11 +305,15 @@ export async function exportVideo(options: ExportOptions): Promise<ExportResult>
     for (let frame = 0; frame < totalFrames; frame++) {
       throwIfStopped()
       // Backpressure: encoder queue, then muxer/writer.
+      lap('audio')
       await waitForQueue(videoEncoder, MAX_VIDEO_QUEUE)
+      lap('encoderWait')
       await videoMux
+      lap('muxerWait')
       throwIfStopped()
 
       await renderer.renderFrame(frame)
+      lap('render')
       const videoFrame = new VideoFrame(canvas, {
         timestamp: frameTimestampUs(frame, fps),
         duration: frameDurationUs(frame, fps),
@@ -274,6 +324,7 @@ export async function exportVideo(options: ExportOptions): Promise<ExportResult>
       } finally {
         videoFrame.close()
       }
+      lap('capture')
 
       if (audioEncoder && pcm) {
         const until = Math.min(
@@ -301,6 +352,7 @@ export async function exportVideo(options: ExportOptions): Promise<ExportResult>
       }
     }
 
+    lap('audio')
     await videoEncoder.flush()
     await audioEncoder?.flush()
     await videoMux
@@ -308,7 +360,9 @@ export async function exportVideo(options: ExportOptions): Promise<ExportResult>
     if (failure) throw failure
     if (signal?.aborted) throw abortError()
 
+    succeeded = true
     await muxer.finalize()
+    lap('finalize')
     report(totalFrames)
 
     const elapsedSec = (performance.now() - startedAt) / 1000
@@ -327,11 +381,14 @@ export async function exportVideo(options: ExportOptions): Promise<ExportResult>
         framesPerSec,
         realtimeFactor: framesPerSec / fps,
         bytes: buffer?.byteLength ?? bytes,
+        phasesMs: phases,
       },
     }
   } catch (error) {
+    succeeded = false
     if (muxer.state !== 'canceled' && muxer.state !== 'finalized')
       await muxer.cancel().catch(() => {})
+    await guarded?.abort()
     if (error instanceof DOMException && error.name === 'AbortError') throw error
     if (error instanceof ExportError) throw error
     throw new ExportError(

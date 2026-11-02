@@ -12,6 +12,7 @@ export {
   isTimed,
   lyricsToText,
   parseLyricsText,
+  stanzaHeader,
   withWords,
   wordId,
   type ParseTextOptions,
@@ -44,16 +45,21 @@ export {
   type LrcParseResult,
 } from './lrc'
 export {
+  DEFAULT_FIXED_SOURCES,
   DEFAULT_MATCH,
   alignLyrics,
+  matchUnits,
   matchWords,
   type AlignOptions,
   type AlignResult,
   type MatchOptions,
   type RecognizedWord,
+  type TimedText,
   type WordMatch,
 } from './align'
 export { DEFAULT_SNAP, nearestOnset, snapToOnsets, type SnapOptions } from './snap'
+export { editWord, retimeFrom, shiftLine, type RetimeResult, type WordEdit } from './edit'
+export { MAX_SPELLED_NUMBER, spellNumber, type NumberLanguage } from './numbers'
 export {
   applyTaps,
   nextTapUnit,

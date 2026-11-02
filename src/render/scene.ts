@@ -6,11 +6,12 @@
 import { SPECTRUM_BARS_DEFAULTS, type SpectrumBarsSpec } from '@/visualizers'
 import type { SafeAreaMode } from './layout'
 import { BACKGROUND_DEFAULTS, type BackgroundSpec } from './layers/background'
+import { LYRICS_DEFAULTS, type LyricsSpec } from './layers/lyrics'
 import { TEXT_DEFAULTS, type TextSpec } from './layers/text'
 
 export const SCENE_VERSION = 1
 
-export type LayerSpec = BackgroundSpec | SpectrumBarsSpec | TextSpec
+export type LayerSpec = BackgroundSpec | SpectrumBarsSpec | TextSpec | LyricsSpec
 export type LayerType = LayerSpec['type']
 
 export interface Scene {
@@ -39,6 +40,7 @@ const LAYER_DEFAULTS: { [K in LayerType]: object } = {
   background: BACKGROUND_DEFAULTS,
   'spectrum-bars': SPECTRUM_BARS_DEFAULTS,
   text: { ...TEXT_DEFAULTS, text: '' },
+  lyrics: LYRICS_DEFAULTS,
 }
 
 /**
@@ -68,13 +70,14 @@ export function normalizeScene(input: unknown): Scene {
   }
 }
 
-/** Milestone-1 default scene: gradient background, spectrum bars, title. */
+/** Default scene: gradient background, spectrum bars, title, lyrics (drawn when the timeline has them). */
 export function createDefaultScene(title = 'SwagToVideo'): Scene {
   return normalizeScene({
     layers: [
       { id: 'bg', type: 'background' },
       { id: 'spectrum', type: 'spectrum-bars' },
       { id: 'title', type: 'text', text: title },
+      { id: 'lyrics', type: 'lyrics' },
     ],
   })
 }

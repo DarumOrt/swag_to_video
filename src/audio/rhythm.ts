@@ -27,24 +27,49 @@ export function onsetScale(envelope: Float32Array): number {
 }
 
 /**
- * Peak picking: local max that rises above the local mean by `delta` of the envelope scale.
- * `minScale` lets a sub-band envelope be judged against the full-band one.
+ * Frame position -> seconds. Flux peaks a little before a transient reaches the window center
+ * (the Hann slope is steepest at a quarter window), so shift by fftSize / 8.
  */
+export function frameTimeFor(
+  rate: number,
+  fftSize: number,
+  sampleRate: number,
+  durationSec: number,
+): FrameTime {
+  const onsetLag = fftSize / 8 / sampleRate
+  return (position) => Math.min(durationSec, Math.max(0, (position + 0.5) / rate + onsetLag))
+}
+
+export interface OnsetPicking {
+  /** Required rise above the local mean, as a share of the envelope scale. */
+  delta: number
+  /** Minimum gap between onsets. */
+  waitSec: number
+}
+
+/**
+ * Full-band picking, tuned on real mixes for effects: ~2–5 onsets/s on songs, ~6/s on dense
+ * electronic tracks (at most 10/s).
+ */
+export const ONSET_PICKING: OnsetPicking = { delta: 0.15, waitSec: 0.1 }
+export const VOCAL_ONSET_PICKING: OnsetPicking = { delta: 0.1, waitSec: 0.1 }
+
+/** Peak picking: local max that rises above the local mean by `delta` of the envelope scale. */
 export function pickOnsets(
   envelope: Float32Array,
   rate: number,
   frameTime: FrameTime,
-  minScale = 0,
+  picking: OnsetPicking = ONSET_PICKING,
 ): Float32Array {
   const n = envelope.length
-  const scale = Math.max(onsetScale(envelope), minScale)
+  const scale = onsetScale(envelope)
   if (scale <= 0) return new Float32Array(0)
 
   const preAvg = Math.round(0.1 * rate)
   const postAvg = Math.round(0.05 * rate)
   const maxRadius = Math.max(1, Math.round(0.03 * rate))
-  const wait = Math.max(1, Math.round(0.05 * rate))
-  const delta = 0.07 * scale
+  const wait = Math.max(1, Math.round(picking.waitSec * rate))
+  const delta = picking.delta * scale
 
   const times: number[] = []
   let last = -Infinity

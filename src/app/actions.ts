@@ -1,4 +1,5 @@
 import { analyzeTrack, createRenderer, exportVideo } from './adapters'
+import { resetLyricsEditor } from './lyricsActions'
 import { playback } from './playback'
 import { IDLE_EXPORT, useAppStore } from './store'
 
@@ -11,6 +12,7 @@ export async function loadTrack(file: File) {
   const token = ++loadToken
   const store = useAppStore.getState()
   cancelExport()
+  resetLyricsEditor()
   if (store.track) URL.revokeObjectURL(store.track.url)
 
   const url = URL.createObjectURL(file)

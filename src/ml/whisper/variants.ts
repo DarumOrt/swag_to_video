@@ -1,4 +1,4 @@
-import type { ModelSource } from '../hub'
+import type { ModelSource } from '../resolve'
 
 export type WhisperModelId =
   | 'whisper-tiny-timestamped'

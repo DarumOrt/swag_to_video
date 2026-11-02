@@ -4,6 +4,7 @@
  */
 
 import type { FrameRate, FrameRenderer, RenderCanvas, RendererInit, Timeline } from '@/shared'
+import { embeddedFamiliesIn, loadEmbeddedFonts } from './fonts'
 import { computeLayout, resolveRect, type Layout } from './layout'
 import { hash32 } from './random'
 import { createLayer } from './registry'
@@ -25,6 +26,11 @@ export interface SceneRendererOptions {
    * two rasterizers anti-alias slightly differently, so mixing them breaks pixel equality.
    */
   willReadFrequently?: boolean
+  /**
+   * Canvas alpha channel. Default true (transparent export needs it). An opaque canvas is cheaper
+   * to turn into a VideoFrame for H.264, which has no alpha anyway.
+   */
+  alpha?: boolean
 }
 
 export class SceneRenderer implements FrameRenderer {
@@ -44,7 +50,7 @@ export class SceneRenderer implements FrameRenderer {
   async init(options: RendererInit): Promise<void> {
     this.dispose()
     const g = options.canvas.getContext('2d', {
-      alpha: true,
+      alpha: this.options.alpha ?? true,
       willReadFrequently: this.options.willReadFrequently ?? false,
     }) as Ctx2D | null
     if (!g) throw new Error('Canvas 2D context is not available')
@@ -52,7 +58,10 @@ export class SceneRenderer implements FrameRenderer {
     this.g = g
     this.fps = options.fps
     this.timeline = options.timeline
-    this.scene = normalizeScene(options.scene)
+    const scene = normalizeScene(options.scene)
+    // Fonts first: a frame drawn before they load would silently use a system font.
+    await loadEmbeddedFonts(embeddedFamiliesIn(sceneFontFamilies(scene)))
+    this.scene = scene
     this.layers = this.scene.layers
       .filter((spec) => spec.enabled !== false)
       .map((spec) => ({
@@ -102,6 +111,10 @@ export class SceneRenderer implements FrameRenderer {
     this.scene = null
     this.layout = null
   }
+}
+
+function sceneFontFamilies(scene: Scene): string[] {
+  return scene.layers.flatMap((l) => ('fontFamily' in l ? [l.fontFamily] : []))
 }
 
 /** Per-frame context: the only inputs layers may use. */

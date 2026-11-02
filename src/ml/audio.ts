@@ -2,7 +2,9 @@
  * Minimal decode → mono 16 kHz for Whisper. Temporary: will be replaced by the audio module's
  * resampler once it exists. Main thread only (OfflineAudioContext is not available in workers).
  */
-export const WHISPER_SAMPLE_RATE = 16000
+import { SAMPLE_RATE as WHISPER_SAMPLE_RATE } from './constants'
+
+export { WHISPER_SAMPLE_RATE }
 
 export async function toMono16k(source: Blob | ArrayBuffer): Promise<Float32Array> {
   const bytes = source instanceof Blob ? await source.arrayBuffer() : source

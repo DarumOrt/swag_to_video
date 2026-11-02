@@ -11,6 +11,7 @@ export function devScene(title: string): SceneInput {
       { id: 'bg', type: 'background' },
       { id: 'spectrum', type: 'spectrum-bars' },
       { id: 'title', type: 'text', text: title },
+      { id: 'lyrics', type: 'lyrics' },
     ],
   }
 }

@@ -12,12 +12,14 @@ export {
   BAND_EDGES_HZ,
   FEATURE_RATE,
   SPECTRUM_BINS,
-  SPECTRUM_DB_FLOOR,
   SPECTRUM_MAX_HZ,
   SPECTRUM_MIN_HZ,
+  SPECTRUM_RANGE_DB,
+  SPECTRUM_TILT_DB_PER_OCTAVE,
 } from './analyze'
 export { decodeAudio, DEFAULT_DECODE_SAMPLE_RATE, type DecodeOptions } from './decode'
 export { LUFS_FLOOR } from './loudness'
+export { analyzeVocalStem, applyVocalStem, type VocalCues } from './stem'
 export { downmixToMono, ML_SAMPLE_RATE, resample, toMono16k } from './resample'
 export type { AnalysisProgress, AnalysisStage, DecodedAudio } from './types'
 

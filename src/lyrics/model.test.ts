@@ -60,3 +60,12 @@ describe('lyricsToText', () => {
     expect(again).toEqual(lyrics)
   })
 })
+
+describe('stanzas', () => {
+  it('marks the first line of each stanza and round-trips blank lines', () => {
+    const text = 'раз два\nтри\n\nчетыре\n[Припев]\nпять'
+    const lyrics = parseLyricsText(text)
+    expect(lyrics.lines.map((l) => l.stanzaStart ?? false)).toEqual([true, false, true, true])
+    expect(lyricsToText(lyrics)).toBe('раз два\nтри\n\nчетыре\n\n[Припев]\nпять')
+  })
+})

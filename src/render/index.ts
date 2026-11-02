@@ -16,6 +16,8 @@ export {
 } from './scene'
 export type { BackgroundFill, BackgroundSpec, ColorStop } from './layers/background'
 export { DEFAULT_FONT_FAMILY, type TextSpec } from './layers/text'
+export { LYRICS_DEFAULTS, type LyricsSpec } from './layers/lyrics'
+export { EMBEDDED_FONTS, FONT_FAMILY, fontStack, loadEmbeddedFonts } from './fonts'
 export {
   computeLayout,
   resolveRect,

@@ -83,9 +83,24 @@
         >Длительность, с
         <input id="duration" type="number" value="10" min="1" max="600" style="width: 60px"
       /></label>
+      <label
+        >Рендерер
+        <select id="renderer">
+          <option value="test">тестовый</option>
+          <option value="scene">SceneRenderer</option>
+        </select></label
+      >
       <label><input id="hw" type="checkbox" checked /> аппаратное</label>
       <label><input id="transparent" type="checkbox" /> прозрачный (WebM)</label>
-      <label><input id="stream" type="checkbox" /> писать в файл потоком</label>
+      <label
+        >Сохранение
+        <select id="save">
+          <option value="">в память (Blob)</option>
+          <option value="file">в файл (выбор файла)</option>
+          <option value="opfs">OPFS → скачать</option>
+        </select></label
+      >
+      <label><input id="worker" type="checkbox" /> в воркере</label>
       <button id="check">Проверить поддержку</button>
       <button id="run">Экспорт</button>
       <button id="cancel" disabled>Отмена</button>

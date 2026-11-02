@@ -1,17 +1,24 @@
 /**
  * Aligns the user's lyrics to recognized words (Whisper output).
  *
- * 1. Needleman–Wunsch over the two word sequences. Only fuzzy matches above `threshold`
- *    may pair up; the alignment is monotonic, so a repeated chorus can't borrow timings from
- *    another repetition. A small position prior breaks ties between identical repeats.
- * 2. Matched words become anchors ('aligned'). Words with user-made timings ('manual', 'tap')
- *    are kept as fixed anchors; recognized anchors that contradict them are dropped.
- * 3. Words between anchors are spread by syllables ('interpolated'); long gaps are treated as
+ * 1. Both sides are split into match units: hyphenated words into parts ("по-моему" → по, моему)
+ *    and numbers 0–999 into spelled words ("21" → двадцать, один), so "2" ↔ "два" and
+ *    "по-моему" ↔ "по моему" can pair up.
+ * 2. Needleman–Wunsch over the units. Only fuzzy matches above `threshold` may pair; the
+ *    alignment is monotonic; consecutive matches get a bonus unless the recognized stream pauses
+ *    between them; a time-based position prior decides which repetition of a chorus a lone
+ *    recognized chorus belongs to.
+ * 3. Matched words become anchors ('aligned'). Words whose source is in `fixedSources`
+ *    ('manual', 'tap', 'imported' by default) are kept as fixed anchors; recognized anchors that
+ *    contradict them are dropped.
+ * 4. Words between anchors are spread by syllables ('interpolated'); long gaps are treated as
  *    pauses: words stay next to the anchor of their own line. Edges are extrapolated.
  */
-import type { LyricWord, Lyrics } from '@/shared'
+import type { LyricWord, Lyrics, TimingSource } from '@/shared'
 import { flattenWords, withWords } from './model'
+import { type NumberLanguage, spellNumber } from './numbers'
 import { keySimilarity, wordKey } from './similarity'
+import { hasCyrillic, normalizeWord } from './text'
 import {
   DEFAULT_TIMING,
   type TimingOptions,
@@ -30,19 +37,38 @@ export interface RecognizedWord {
   confidence: number
 }
 
+export interface TimedText {
+  text: string
+  start: number
+  end: number
+}
+
 export interface MatchOptions {
   /** Minimum similarity 0..100 for two words to pair up. */
   threshold: number
-  /** Penalty for pairing words at different relative positions (0 = off). */
+  /**
+   * Penalty for pairing words at different relative positions (0 = off). With timed recognized
+   * words the position is by time, otherwise by index.
+   */
   positionWeight: number
   /**
    * Bonus for a match that directly continues the previous one. Keeps phrases together,
    * so a repeated chorus is matched as a whole instead of being stitched from several repeats.
    */
   runBonus: number
+  /** A recognized pause longer than this breaks a run: no run bonus across it. */
+  pauseSec: number
+  /** Track length, for the time-based position prior; null = end of the last recognized word. */
+  durationSec: number | null
 }
 
-export const DEFAULT_MATCH: MatchOptions = { threshold: 55, positionWeight: 0.3, runBonus: 0.5 }
+export const DEFAULT_MATCH: MatchOptions = {
+  threshold: 55,
+  positionWeight: 0.3,
+  runBonus: 0.5,
+  pauseSec: 1.5,
+  durationSec: null,
+}
 
 export interface WordMatch {
   lyricIndex: number
@@ -59,18 +85,38 @@ const FROM_MATCH = 4
 /**
  * Monotonic fuzzy matching of two word lists: Needleman–Wunsch with two states
  * (ends in a match / ends in a gap) so consecutive matches can be rewarded. Returns pairs in order.
+ * Pass recognized words with times to enable the time prior and pause-aware run bonus.
  */
 export function matchWords(
   lyricWords: readonly string[],
-  recognizedWords: readonly string[],
+  recognizedWords: readonly (string | TimedText)[],
   options: Partial<MatchOptions> = {},
 ): WordMatch[] {
-  const { threshold, positionWeight, runBonus } = { ...DEFAULT_MATCH, ...options }
+  const { threshold, positionWeight, runBonus, pauseSec, durationSec } = {
+    ...DEFAULT_MATCH,
+    ...options,
+  }
   const a = lyricWords.map(wordKey)
-  const b = recognizedWords.map(wordKey)
+  const b = recognizedWords.map((w) => wordKey(typeof w === 'string' ? w : w.text))
   const n = a.length
   const m = b.length
   if (!n || !m) return []
+
+  // Relative position of each recognized word and whether a pause precedes it.
+  const timed = recognizedWords.every((w) => typeof w !== 'string')
+  const recPosition = new Float64Array(m)
+  const pauseBefore = new Uint8Array(m)
+  if (timed) {
+    const words = recognizedWords as readonly TimedText[]
+    const t0 = words[0]!.start
+    const span = Math.max((durationSec ?? words.at(-1)!.end) - t0, 1e-6)
+    words.forEach((w, j) => {
+      recPosition[j] = Math.min(Math.max((w.start - t0) / span, 0), 1)
+      if (j > 0 && w.start - words[j - 1]!.end > pauseSec) pauseBefore[j] = 1
+    })
+  } else {
+    for (let j = 0; j < m; j++) recPosition[j] = (j + 0.5) / m
+  }
 
   const width = m + 1
   const size = (n + 1) * width
@@ -81,11 +127,9 @@ export function matchWords(
   for (let i = 1; i <= n; i++) gapMove[i * width] = GAP_UP
   for (let j = 1; j <= m; j++) gapMove[j] = GAP_LEFT
 
-  const pairScore = (i: number, j: number, similarity: number) =>
-    similarity / 100 - positionWeight * Math.abs((i - 0.5) / n - (j - 0.5) / m)
-
   for (let i = 1; i <= n; i++) {
     const ka = a[i - 1]!
+    const lyricPosition = (i - 0.5) / n
     for (let j = 1; j <= m; j++) {
       const cell = i * width + j
       const up = cell - width
@@ -102,8 +146,10 @@ export function matchWords(
 
       const similarity = keySimilarity(ka, b[j - 1]!, threshold)
       if (similarity >= threshold) {
-        const base = pairScore(i, j, similarity)
-        const continued = matchScore[diag]! + base + runBonus
+        const base =
+          similarity / 100 - positionWeight * Math.abs(lyricPosition - recPosition[j - 1]!)
+        const bonus = pauseBefore[j - 1] ? 0 : runBonus
+        const continued = matchScore[diag]! + base + bonus
         const fresh = gapScore[diag]! + base
         matchScore[cell] = Math.max(continued, fresh)
         matchFromMatch[cell] = continued >= fresh ? 1 : 0
@@ -136,15 +182,79 @@ export function matchWords(
   return matches.reverse()
 }
 
-export interface AlignOptions extends MatchOptions, TimingOptions {
-  /** Keep 'manual' and 'tap' timings as fixed anchors. Default true. */
-  keepUserTimings: boolean
-  /** Track length; trailing extrapolation won't run past it. */
-  durationSec: number | null
+const INNER_HYPHEN = /(?<=[\p{L}\p{N}])[-‐‑](?=[\p{L}\p{N}])/u
+
+/**
+ * Match units of one display word: hyphen parts, numbers 0–999 spelled out.
+ * "по-моему" → ["по", "моему"], "21" → ["двадцать", "один"] (ru).
+ */
+export function matchUnits(text: string, language: NumberLanguage): string[] {
+  return text.split(INNER_HYPHEN).flatMap((part) => {
+    const normalized = normalizeWord(part)
+    if (!normalized) return []
+    if (/^\d+$/.test(normalized)) {
+      const spelled = spellNumber(Number(normalized), language)
+      if (spelled) return spelled
+    }
+    return [part]
+  })
 }
+
+/** Number language for word i: from the lyrics language, or nearby script for mixed lyrics. */
+function numberLanguage(texts: readonly string[], i: number, language: Lyrics['language']) {
+  if (language !== 'mixed') return language
+  for (let d = 1; d <= 3; d++) {
+    for (const k of [i - d, i + d]) {
+      const text = texts[k]
+      if (text && normalizeWord(text).replace(/\d/g, '')) return hasCyrillic(text) ? 'ru' : 'en'
+    }
+  }
+  return 'ru'
+}
+
+interface Unit extends TimedText {
+  owner: number
+}
+
+function lyricUnits(texts: readonly string[], language: Lyrics['language']): Unit[] {
+  return texts.flatMap((text, owner) =>
+    matchUnits(text, numberLanguage(texts, owner, language)).map((unit) => ({
+      owner,
+      text: unit,
+      start: 0,
+      end: 0,
+    })),
+  )
+}
+
+/** Recognized words split into units; a word's time is shared by its units by text length. */
+function recognizedUnits(words: readonly RecognizedWord[], language: Lyrics['language']): Unit[] {
+  const texts = words.map((w) => w.text)
+  return words.flatMap((word, owner) => {
+    const parts = matchUnits(word.text, numberLanguage(texts, owner, language))
+    const lengths = parts.map((p) => Math.max(normalizeWord(p).length, 1))
+    const total = lengths.reduce((x, y) => x + y, 0)
+    let t = word.start
+    return parts.map((text, k) => {
+      const start = t
+      t += ((word.end - word.start) * lengths[k]!) / total
+      return { owner, text, start, end: t }
+    })
+  })
+}
+
+export interface AlignOptions extends MatchOptions, TimingOptions {
+  /** Sources kept as fixed anchors. Default: 'manual', 'tap', 'imported'. */
+  fixedSources: readonly TimingSource[]
+  /** @deprecated Use `fixedSources`. `false` = no fixed anchors; `true` = the default sources. */
+  keepUserTimings?: boolean
+}
+
+export const DEFAULT_FIXED_SOURCES: readonly TimingSource[] = ['manual', 'tap', 'imported']
 
 export interface AlignResult {
   lyrics: Lyrics
+  /** Word-level pairs (indices into the lyrics' reading order and the recognized list). */
   matches: WordMatch[]
   /** Words that got their timing from a recognized word. */
   anchoredCount: number
@@ -156,6 +266,14 @@ interface Anchor {
   start: number
   end: number
   fixed: boolean
+}
+
+interface RecognizedAnchor {
+  start: number
+  end: number
+  /** Mean unit similarity 0..100. */
+  similarity: number
+  confidence: number
 }
 
 /**
@@ -170,8 +288,7 @@ export function alignLyrics(
   const opts: AlignOptions = {
     ...DEFAULT_MATCH,
     ...DEFAULT_TIMING,
-    keepUserTimings: true,
-    durationSec: null,
+    fixedSources: options.keepUserTimings === false ? [] : DEFAULT_FIXED_SOURCES,
     ...options,
   }
   const refs = flattenWords(lyrics)
@@ -180,34 +297,65 @@ export function alignLyrics(
     .filter((w) => Number.isFinite(w.start) && Number.isFinite(w.end) && wordKey(w.text).normalized)
     .toSorted((x, y) => x.start - y.start)
 
-  const matches = matchWords(
-    words.map((w) => w.text),
-    usable.map((w) => w.text),
+  const texts = words.map((w) => w.text)
+  const lUnits = lyricUnits(texts, lyrics.language)
+  const rUnits = recognizedUnits(usable, lyrics.language)
+  const unitMatches = matchWords(
+    lUnits.map((u) => u.text),
+    rUnits,
     opts,
   )
+
+  // Unit matches → one recognized anchor per lyric word, plus word-level match list.
+  const recAnchors = new Map<number, RecognizedAnchor & { count: number }>()
+  const wordMatches = new Map<string, WordMatch>()
+  for (const um of unitMatches) {
+    const owner = lUnits[um.lyricIndex]!.owner
+    const unit = rUnits[um.recognizedIndex]!
+    const conf = clamp01(usable[unit.owner]!.confidence)
+    const prev = recAnchors.get(owner)
+    if (!prev) {
+      recAnchors.set(owner, { ...unit, similarity: um.similarity, confidence: conf, count: 1 })
+    } else {
+      prev.end = Math.max(prev.end, unit.end)
+      prev.similarity += um.similarity
+      prev.confidence += conf
+      prev.count++
+    }
+    const key = `${owner}:${unit.owner}`
+    const known = wordMatches.get(key)
+    if (!known || known.similarity < um.similarity) {
+      wordMatches.set(key, {
+        lyricIndex: owner,
+        recognizedIndex: unit.owner,
+        similarity: um.similarity,
+      })
+    }
+  }
+  for (const anchor of recAnchors.values()) {
+    anchor.similarity /= anchor.count
+    anchor.confidence /= anchor.count
+  }
+  const matches = [...wordMatches.values()]
+
   const empty = { lyrics, matches, anchoredCount: 0, wordCount: words.length }
   if (!words.length) return empty
 
   const isFixed = (w: LyricWord) =>
-    opts.keepUserTimings &&
-    w.start !== null &&
-    (w.timingSource === 'manual' || w.timingSource === 'tap')
+    w.start !== null && w.timingSource !== null && opts.fixedSources.includes(w.timingSource)
 
   // Candidate anchors in reading order.
-  const byIndex = new Map(matches.map((m) => [m.lyricIndex, m]))
   const candidates: Anchor[] = []
   words.forEach((word, index) => {
     if (isFixed(word)) {
       candidates.push({ index, start: word.start!, end: word.end ?? word.start!, fixed: true })
       return
     }
-    const match = byIndex.get(index)
-    if (!match) return
-    const rec = usable[match.recognizedIndex]!
-    candidates.push({ index, start: rec.start, end: rec.end, fixed: false })
+    const rec = recAnchors.get(index)
+    if (rec) candidates.push({ index, start: rec.start, end: rec.end, fixed: false })
   })
 
-  // Drop recognized anchors that run against user-fixed ones.
+  // Drop recognized anchors that run against fixed ones.
   const anchors: Anchor[] = []
   for (const anchor of candidates) {
     if (anchor.fixed) {
@@ -227,13 +375,12 @@ export function alignLyrics(
   let anchoredCount = 0
   for (const anchor of anchors) {
     if (anchor.fixed) continue
-    const match = byIndex.get(anchor.index)!
-    const rec = usable[match.recognizedIndex]!
+    const rec = recAnchors.get(anchor.index)!
     timed[anchor.index] = {
       ...timed[anchor.index]!,
       start: anchor.start,
       end: anchor.end,
-      confidence: clamp01(rec.confidence) * (match.similarity / 100),
+      confidence: rec.confidence * (rec.similarity / 100),
       timingSource: 'aligned',
     }
     anchoredCount++

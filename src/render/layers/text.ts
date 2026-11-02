@@ -2,6 +2,7 @@
  * Static text layer (milestone 1 placeholder for the track title). Kinetic typography comes later.
  */
 
+import { FONT_FAMILY, fontStack } from '../fonts'
 import type { RectSpec } from '../layout'
 import type { BandReaction, Ctx2D, FrameContext, Layer, LayerSpecBase } from '../types'
 
@@ -24,12 +25,11 @@ export interface TextSpec extends LayerSpecBase {
   pulse: BandReaction | null
 }
 
-export const DEFAULT_FONT_FAMILY =
-  '"Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif'
+export const DEFAULT_FONT_FAMILY = fontStack(FONT_FAMILY.grotesk)
 
 export const TEXT_DEFAULTS: Omit<TextSpec, 'id' | 'type' | 'text'> = {
   rect: { x: 0, y: 0.08, w: 1, h: 0.2 },
-  fontFamily: DEFAULT_FONT_FAMILY,
+  fontFamily: fontStack(FONT_FAMILY.display),
   fontWeight: 800,
   fontSize: 0.075,
   lineHeight: 1.15,

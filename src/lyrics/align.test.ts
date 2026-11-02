@@ -210,3 +210,113 @@ describe('alignLyrics — user timings', () => {
     expectPlayable(out)
   })
 })
+
+describe('alignLyrics — imported timings', () => {
+  const base = parseLyricsText('раз два три')
+  const words = flattenWords(base).map((r) => r.word)
+  words[1] = { ...words[1]!, start: 2, end: 2.4, timingSource: 'imported' }
+  const lyrics = withWords(base, words)
+  const recognized = rec(['раз', 1, 1.4], ['два', 5, 5.4], ['три', 6, 6.4])
+
+  it('keeps imported words as fixed anchors by default', () => {
+    const { lyrics: out } = alignLyrics(lyrics, recognized)
+    expect(wordByText(out, 'два')).toMatchObject({ start: 2, timingSource: 'imported' })
+  })
+
+  it('can treat imported words like any other', () => {
+    const { lyrics: out } = alignLyrics(lyrics, recognized, { fixedSources: ['manual', 'tap'] })
+    expect(wordByText(out, 'два')).toMatchObject({ start: 5, timingSource: 'aligned' })
+  })
+})
+
+describe('alignLyrics — numbers and hyphens', () => {
+  it('matches digits to spelled numbers both ways', () => {
+    const lyrics = parseLyricsText('Мне двадцать один, а тебе 2')
+    const recognized = rec(
+      ['мне', 0, 0.3],
+      ['21', 0.35, 1.2],
+      ['а', 1.25, 1.35],
+      ['тебе', 1.4, 1.8],
+      ['два', 1.85, 2.3],
+    )
+    const { lyrics: out, anchoredCount } = alignLyrics(lyrics, recognized)
+    expect(anchoredCount).toBe(6)
+    expect(wordByText(out, 'двадцать').start).toBe(0.35)
+    expect(wordByText(out, 'один,').end).toBeCloseTo(1.2)
+    expect(wordByText(out, '2').start).toBe(1.85)
+  })
+
+  it('matches English numbers', () => {
+    const lyrics = parseLyricsText('Give me 5 more minutes')
+    const recognized = rec(
+      ['give', 0, 0.2],
+      ['me', 0.25, 0.4],
+      ['five', 0.45, 0.8],
+      ['more', 0.85, 1],
+      ['minutes', 1.05, 1.5],
+    )
+    expect(alignLyrics(lyrics, recognized).anchoredCount).toBe(5)
+  })
+
+  it('matches hyphenated words to split ones and back', () => {
+    const lyrics = parseLyricsText('Ну а по-моему всё')
+    const split = rec(
+      ['ну', 0, 0.2],
+      ['а', 0.25, 0.35],
+      ['по', 0.4, 0.55],
+      ['моему', 0.6, 1.1],
+      ['всё', 1.15, 1.5],
+    )
+    const { lyrics: out } = alignLyrics(lyrics, split)
+    expect(wordByText(out, 'по-моему')).toMatchObject({
+      start: 0.4,
+      end: 1.1,
+      timingSource: 'aligned',
+    })
+
+    const joined = parseLyricsText('Ну а по моему всё')
+    const hyphen = rec(
+      ['ну', 0, 0.2],
+      ['а', 0.25, 0.35],
+      ['по-моему', 0.4, 1.1],
+      ['всё', 1.15, 1.5],
+    )
+    const { lyrics: out2, anchoredCount } = alignLyrics(joined, hyphen)
+    expect(anchoredCount).toBe(5)
+    expect(wordByText(out2, 'по').start).toBe(0.4)
+    expect(wordByText(out2, 'моему').end).toBe(1.1)
+  })
+})
+
+describe('alignLyrics — which chorus a lone repetition belongs to', () => {
+  const lyrics = parseLyricsText(`Я иду по краю крыши
+[Припев]
+Гори, гори, моя звезда
+[Припев]
+Гори, гори, моя звезда`)
+  const sourcesByLine = (out: Lyrics) =>
+    out.lines
+      .slice(1)
+      .map((l) => (l.words.every((w) => w.timingSource === 'aligned') ? 'aligned' : 'other'))
+
+  it('late chorus near the end of the track → second repetition', () => {
+    const recognized = [
+      ...recEven('я иду по краю крыши', 0, 0.4),
+      ...recEven('гори гори моя звезда', 30, 0.5),
+    ]
+    const { lyrics: out } = alignLyrics(lyrics, recognized, { durationSec: 33 })
+    expect(sourcesByLine(out)).toEqual(['other', 'aligned'])
+  })
+
+  it('early chorus in a long track → first repetition', () => {
+    const recognized = [
+      ...recEven('я иду по краю крыши', 0, 0.4),
+      ...recEven('гори гори моя звезда', 10, 0.5),
+    ]
+    const { lyrics: out } = alignLyrics(lyrics, recognized, { durationSec: 40 })
+    expect(sourcesByLine(out)).toEqual(['aligned', 'other'])
+    const second = out.lines[2]!.words
+    expect(second[0]!.start!).toBeGreaterThan(12)
+    expectPlayable(out)
+  })
+})

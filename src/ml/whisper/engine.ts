@@ -18,7 +18,9 @@ import {
   type ProgressInfo,
   type Tensor,
 } from '@huggingface/transformers'
-import { configureHub, resolveModel } from '../hub'
+import { SAMPLE_RATE } from '../constants'
+import { configureHub } from '../hub'
+import { resolveModel } from '../resolve'
 import { isKnownHallucination, trimRepetitions } from './filters'
 import { TIME_PRECISION, buildWords, decodeWindow, type WordTiming } from './segments'
 import type {
@@ -32,7 +34,6 @@ import type {
 } from './types'
 import { WHISPER_MODELS } from './variants'
 
-export const SAMPLE_RATE = 16000
 const WINDOW_SEC = 30
 /** Whisper's decoder context is 448 tokens; 3 go to the prompt. */
 const MAX_NEW_TOKENS = 440

@@ -43,11 +43,23 @@ describe('spectrum', () => {
       const row = data.subarray(frame * binCount, (frame + 1) * binCount)
       const argmax = row.indexOf(maxOf(row))
       expect(Math.abs(argmax - expected)).toBeLessThanOrEqual(1)
-      // -6 dBFS on a 90 dB scale.
-      expect(row[argmax]).toBeCloseTo(1 - 6 / 90, 1)
+      // The scale is relative to the track's loudest bins, so the only tone is at the top.
+      expect(row[argmax]).toBeCloseTo(1, 2)
       expect(row[0]).toBeLessThan(0.2)
+      expect(row[argmax + 8]).toBeLessThan(0.5)
     })
   }
+
+  it('scales quiet and loud copies of a track alike, but keeps near-silence dark', () => {
+    const at = (amplitude: number) => {
+      const tone = sine(SR, 1, 1000, amplitude)
+      const { features } = analyzePcm(pcmOf(SR, tone))
+      return maxOf(features.spectrum.data)
+    }
+    expect(at(0.05)).toBeCloseTo(at(1), 3)
+    // -94 dBFS: below the reference floor.
+    expect(at(2e-5)).toBeLessThan(0.3)
+  })
 
   it('uses the configured bin layout', () => {
     const { features } = analyzePcm(pcmOf(SR, sine(SR, 0.5, 440)))
@@ -69,8 +81,34 @@ describe('levels', () => {
     expect(features.lufsShortTerm[mid]).toBeCloseTo(0, 0)
     expect(features.stereo.correlation[mid]).toBeCloseTo(1, 3)
     expect(features.stereo.width[mid]).toBeCloseTo(0, 3)
-    expect(features.bands.mid[mid]).toBeCloseTo(1, 2)
-    expect(features.bands.low[mid]!).toBeLessThan(0.5)
+    // A steady tone is at the top of the global scale but never rises above its own running
+    // level, so it reads as the global half only.
+    expect(features.bands.mid[mid]).toBeCloseTo(0.5, 2)
+    expect(features.bands.low[mid]!).toBeLessThan(0.25)
+  })
+
+  it('pumps the low band on kicks over a sustained bass', () => {
+    const seconds = 8
+    const bass = sine(SR, seconds, 55, 0.4)
+    const times = clickTimes(120, seconds, 0.25)
+    for (const t of times) {
+      const start = Math.round(t * SR)
+      for (let k = 0; k < 0.12 * SR && start + k < bass.length; k++) {
+        const s = k / SR
+        bass[start + k] =
+          bass[start + k]! +
+          0.6 * Math.sin(2 * Math.PI * (45 + 60 * Math.exp(-s * 25)) * s) * Math.exp(-s * 18)
+      }
+    }
+    const { features } = analyzePcm(pcmOf(SR, bass, bass))
+    const at = (t: number) => features.bands.low[Math.floor(t * features.rate)]!
+    let onKick = 0
+    let between = 0
+    for (const t of times.slice(2, -1)) {
+      onKick += at(t + 0.03)
+      between += at(t + 0.35)
+    }
+    expect(onKick / between).toBeGreaterThan(1.5)
   })
 
   it('measures -3 LUFS for a 0 dBFS sine in one channel', () => {
