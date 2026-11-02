@@ -1,13 +1,153 @@
 @import 'tailwindcss';
 
-/* Design tokens and theme are owned by the frontend session. */
+/*
+ * Design tokens. Owned by the frontend session.
+ * Dark, calm, "audio tool" look: neutral graphite surfaces, one mint accent (meters), amber for warnings.
+ */
+@theme {
+  --font-sans:
+    'Inter', 'Segoe UI Variable Text', 'Segoe UI', 'SF Pro Text', system-ui, -apple-system, Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --font-mono:
+    'JetBrains Mono', 'Cascadia Mono', 'SF Mono', Consolas, 'Roboto Mono', ui-monospace, monospace;
+
+  /* Surfaces, from back to front */
+  --color-bg: oklch(0.145 0.004 270);
+  --color-surface: oklch(0.18 0.005 270);
+  --color-raised: oklch(0.215 0.006 270);
+  --color-hover: oklch(0.25 0.007 270);
+  --color-line: oklch(0.27 0.006 270);
+  --color-line-strong: oklch(0.34 0.008 270);
+
+  /* Text */
+  --color-fg: oklch(0.94 0.004 270);
+  --color-muted: oklch(0.68 0.01 270);
+  --color-subtle: oklch(0.52 0.01 270);
+
+  /* Accent — mint, like level meters */
+  --color-accent: oklch(0.82 0.14 168);
+  --color-accent-strong: oklch(0.88 0.15 168);
+  --color-accent-fg: oklch(0.2 0.03 168);
+  --color-accent-soft: oklch(0.82 0.14 168 / 0.14);
+
+  --color-warn: oklch(0.82 0.14 75);
+  --color-warn-soft: oklch(0.82 0.14 75 / 0.12);
+  --color-danger: oklch(0.68 0.19 25);
+  --color-danger-soft: oklch(0.68 0.19 25 / 0.14);
+
+  /* Type scale: compact, tool-like */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
 :root {
   color-scheme: dark;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   margin: 0;
-  background: #0b0b10;
-  color: #e7e7ee;
-  font-family: system-ui, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+::selection {
+  background: var(--color-accent-soft);
+}
+
+/* Tabular numbers for anything that ticks (time, sizes, progress). */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Range input (sliders, scrub bar). Progress fill comes from --range-progress (0%..100%),
+ * set on the element itself so no descendants restyle.
+ */
+.range {
+  --range-progress: 0%;
+  --range-track: var(--color-line-strong);
+  --range-fill: var(--color-accent);
+  appearance: none;
+  background: transparent;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+}
+.range:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--range-fill) var(--range-progress),
+    var(--range-track) var(--range-progress)
+  );
+}
+.range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--range-track);
+}
+.range::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--range-fill);
+}
+.range::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 999px;
+  background: var(--color-fg);
+  box-shadow: 0 0 0 3px oklch(0 0 0 / 0.35);
+  transition: transform 120ms var(--ease-out);
+}
+.range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-fg);
+}
+.range:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+.range:focus-visible {
+  outline: none;
+}
+.range:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 3px var(--color-accent-soft),
+    0 0 0 1px var(--color-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
 }

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Render test</title>
+    <style>
+      body {
+        font:
+          14px system-ui,
+          sans-serif;
+        background: #111;
+        color: #eee;
+        margin: 16px;
+      }
+      fieldset {
+        border: 1px solid #333;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+      button {
+        padding: 6px 14px;
+      }
+      #stage {
+        position: relative;
+        display: inline-block;
+        margin-top: 12px;
+        line-height: 0;
+      }
+      #canvas {
+        display: block;
+        background: #000;
+        max-height: calc(100vh - 170px);
+        max-width: calc(100vw - 32px);
+      }
+      #safe {
+        position: absolute;
+        border: 1px dashed #f43f5e;
+        pointer-events: none;
+        display: none;
+      }
+      #stats {
+        font-family: ui-monospace, monospace;
+        color: #9cf;
+      }
+      #log {
+        white-space: pre-wrap;
+        font-family: ui-monospace, monospace;
+        color: #9cf;
+        margin-top: 8px;
+      }
+      #scrub {
+        width: 320px;
+      }
+    </style>
+  </head>
+  <body>
+    <h3>SwagToVideo · тест рендер-движка</h3>
+    <fieldset>
+      <label
+        >Формат
+        <select id="format">
+          <option value="1080x1920" selected>9:16 · 1080×1920</option>
+          <option value="1920x1080">16:9 · 1920×1080</option>
+          <option value="1080x1080">1:1 · 1080×1080</option>
+          <option value="1080x1350">4:5 · 1080×1350</option>
+          <option value="720x1280">9:16 · 720×1280</option>
+          <option value="2160x3840">9:16 · 2160×3840</option>
+        </select></label
+      >
+      <label
+        >FPS
+        <select id="fps">
+          <option>24</option>
+          <option>30</option>
+          <option selected>60</option>
+        </select></label
+      >
+      <label
+        >Название <input id="title" value="Ночной город · Night City" style="width: 220px"
+      /></label>
+      <label><input id="safeToggle" type="checkbox" /> безопасная зона</label>
+      <button id="play">⏸ Пауза</button>
+      <input id="scrub" type="range" min="0" value="0" />
+      <button id="determinism">Проверить детерминизм</button>
+      <button id="worker">Кадр в воркере (OffscreenCanvas)</button>
+    </fieldset>
+    <p id="stats"></p>
+    <div id="stage">
+      <canvas id="canvas"></canvas>
+      <div id="safe"></div>
+    </div>
+    <div id="log"></div>
+    <script type="module" src="/src/render/dev/main.ts"></script>
+  </body>
+</html>

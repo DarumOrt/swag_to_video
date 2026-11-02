@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Audio analysis test</title>
+    <style>
+      body {
+        font:
+          14px system-ui,
+          sans-serif;
+        background: #111;
+        color: #eee;
+        margin: 16px;
+      }
+      fieldset {
+        border: 1px solid #333;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+      button {
+        padding: 6px 14px;
+      }
+      canvas {
+        display: block;
+        background: #000;
+        margin-top: 12px;
+        max-width: calc(100vw - 32px);
+      }
+      #overview {
+        cursor: crosshair;
+      }
+      #audio {
+        width: 100%;
+        max-width: 1200px;
+        margin-top: 12px;
+      }
+      #stats,
+      #log {
+        white-space: pre-wrap;
+        font-family: ui-monospace, monospace;
+        color: #9cf;
+      }
+      .legend span {
+        margin-right: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <h3>SwagToVideo · тест аудио-анализа</h3>
+    <fieldset>
+      <input id="file" type="file" accept="audio/*,video/*" />
+      <label><input id="mono16k" type="checkbox" /> также 16 кГц моно</label>
+      <button id="cancel" disabled>Отмена</button>
+      <button id="rerun" disabled>Повторить анализ (детерминизм)</button>
+    </fieldset>
+    <p id="stats">Выберите трек (например, из test-media/).</p>
+    <audio id="audio" controls></audio>
+    <div class="legend">
+      <span style="color: #fff">— peak</span><span style="color: #4ade80">— rms</span
+      ><span style="color: #facc15">— LUFS st</span><span style="color: #f87171">— low</span
+      ><span style="color: #60a5fa">— mid</span><span style="color: #c084fc">— high</span
+      ><span style="color: #f472b6">▮ биты / даунбиты</span
+      ><span style="color: #fb923c">▮ onsets</span><span style="color: #22d3ee">▮ vocal onsets</span
+      ><span style="color: #a3e635">▬ вокал</span>
+    </div>
+    <canvas id="overview" width="1200" height="520"></canvas>
+    <canvas id="live" width="1200" height="260"></canvas>
+    <div id="log"></div>
+    <script type="module" src="/src/audio/dev/main.ts"></script>
+  </body>
+</html>

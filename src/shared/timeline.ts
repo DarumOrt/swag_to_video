@@ -106,11 +106,21 @@ export interface LyricLine {
   id: string
   /** Optional section label, e.g. "Куплет 1", "Припев". */
   section?: string
+  /** True for the first line of a stanza (after a blank line in the source text). */
+  stanzaStart?: boolean
   words: LyricWord[]
 }
 
 /** Where a word's timing came from — lets the editor show what needs checking. */
-export type TimingSource = 'whisper' | 'aligned' | 'interpolated' | 'snapped' | 'tap' | 'manual'
+export type TimingSource =
+  | 'whisper'
+  | 'aligned'
+  | 'interpolated'
+  | 'snapped'
+  | 'tap'
+  | 'manual'
+  /** From an imported LRC / Enhanced LRC file. */
+  | 'imported'
 
 export interface LyricWord {
   id: string
@@ -158,6 +168,7 @@ export interface Accent {
 
 /** Index into per-frame feature arrays for time `timeSec`. */
 export function featureIndexAt(features: FrameFeatures, timeSec: number): number {
-  const index = Math.floor(timeSec * features.rate)
+  // Small epsilon: times like 245/60 land a hair below the grid point in float math.
+  const index = Math.floor(timeSec * features.rate + 1e-6)
   return Math.min(Math.max(index, 0), Math.max(features.frameCount - 1, 0))
 }

@@ -18,7 +18,7 @@
 - Целевой браузер: Chrome/Edge (WebCodecs, WebGPU). Остальные — через feature-detect и фолбэки.
 - Заголовки COOP `same-origin` + COEP `credentialless` (SharedArrayBuffer для многопоточного WASM,
   при этом загрузка с Hugging Face работает — проверено). Заданы в `vercel.json` и `vite.config.ts` — держать в синхроне.
-- Репозитории моделей на HF: `DarumOrt/whisper-small-timestamped-onnx`, `DarumOrt/htdemucs-onnx` (MIT),
+- Репозитории моделей на HF: `DarumOrt/whisper-small-timestamped-onnx` (Apache-2.0), `DarumOrt/htdemucs-onnx` (MIT),
   `DarumOrt/aligner-onnx` (CC BY-NC 4.0).
 - Репозиторий кода: https://github.com/DarumOrt/SwagToVideo (публичный). Секреты — только в `.env` (gitignored).
 
@@ -30,6 +30,7 @@ npm run typecheck  # tsc -b
 npm run lint       # eslint
 npm test           # vitest
 npm run build      # прод-сборка в dist/
+npm run e2e        # Playwright в установленном Chrome (видимое окно, реальный WebGPU)
 ```
 
 Перед отчётом о работе прогоняй `typecheck`, `lint` и `test`. Импорты внутри `src` — через алиас `@/`.
@@ -86,7 +87,7 @@ WebGL2 / Three.js + GLSL, Canvas 2D · WebCodecs + mediabunny · transformers.js
 3. **Не запускай `npm install`** и не правь `package.json` — сессии работают в одной папке, и параллельные
    установки ломают lock-файл. Нужна зависимость — попроси главную сессию (она проверит лицензию и вес).
    Уже установлены: `three`, `mediabunny`, `@huggingface/transformers`, `zustand`, `clsx`, `tailwind-merge`,
-   `class-variance-authority`, `lucide-react`.
+   `class-variance-authority`, `lucide-react`, `onnxruntime-web`, `@playwright/test` (dev).
 4. Фундаментальные решения из списка выше не пересматривай самостоятельно — предлагай главной сессии.
 5. Закончив кусок работы, кратко отчитайся: что сделано, какие файлы, что не проверено, что нужно от других.
 6. Ничего не начинай без задачи от пользователя или главной сессии.
@@ -97,3 +98,6 @@ WebGL2 / Three.js + GLSL, Canvas 2D · WebCodecs + mediabunny · transformers.js
    5173 — главная, 5174 — аудио, 5175 — ML, 5176 — лирика, 5177 — рендер, 5178 — фронт, 5179 — экспорт.
 9. **Тестовые треки** — в `test-media/` (в `.gitignore`, в репозиторий не попадают). В автотестах
    генерируй синтетический звук (синус, клики, шум), а не реальные треки.
+10. **E2E и бенчмарки в браузере** — Playwright (`playwright.config.ts`): установленный Chrome, видимое окно,
+    браузеры не скачиваются. Спеки своего модуля — в `e2e/<модуль>/`; свой dev-порт — через
+    `E2E_BASE_URL=http://localhost:<порт>` (тогда `webServer` из конфига не запускается).

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Export test</title>
+    <style>
+      body {
+        font:
+          14px system-ui,
+          sans-serif;
+        background: #111;
+        color: #eee;
+        margin: 16px;
+      }
+      fieldset {
+        border: 1px solid #333;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+      button {
+        padding: 6px 14px;
+      }
+      progress {
+        width: 320px;
+      }
+      table {
+        border-collapse: collapse;
+        margin-top: 12px;
+      }
+      td,
+      th {
+        border: 1px solid #333;
+        padding: 4px 8px;
+        text-align: right;
+      }
+      th {
+        background: #222;
+      }
+      #log {
+        white-space: pre-wrap;
+        font-family: ui-monospace, monospace;
+        color: #9cf;
+      }
+      video {
+        max-height: 480px;
+        margin-top: 12px;
+        background: #000;
+      }
+    </style>
+  </head>
+  <body>
+    <h3>SwagToVideo · тест экспорта</h3>
+    <fieldset>
+      <label
+        >Формат
+        <select id="container">
+          <option value="mp4">MP4 (H.264+AAC)</option>
+          <option value="webm">WebM (VP9+Opus)</option>
+        </select></label
+      >
+      <label
+        >Размер
+        <select id="size">
+          <option value="720x1280">720×1280</option>
+          <option value="1080x1920" selected>1080×1920</option>
+          <option value="2160x3840">2160×3840 (4K)</option>
+          <option value="1920x1080">1920×1080</option>
+          <option value="1080x1080">1080×1080</option>
+        </select></label
+      >
+      <label
+        >FPS
+        <select id="fps">
+          <option>24</option>
+          <option selected>30</option>
+          <option>60</option>
+        </select></label
+      >
+      <label
+        >Длительность, с
+        <input id="duration" type="number" value="10" min="1" max="600" style="width: 60px"
+      /></label>
+      <label><input id="hw" type="checkbox" checked /> аппаратное</label>
+      <label><input id="transparent" type="checkbox" /> прозрачный (WebM)</label>
+      <label><input id="stream" type="checkbox" /> писать в файл потоком</label>
+      <button id="check">Проверить поддержку</button>
+      <button id="run">Экспорт</button>
+      <button id="cancel" disabled>Отмена</button>
+    </fieldset>
+    <p><progress id="progress" max="1" value="0"></progress> <span id="status"></span></p>
+    <div id="log"></div>
+    <table id="results">
+      <tr>
+        <th>формат</th>
+        <th>размер</th>
+        <th>fps</th>
+        <th>кодек</th>
+        <th>HW</th>
+        <th>длит., с</th>
+        <th>время, с</th>
+        <th>кадр/с</th>
+        <th>×реалтайм</th>
+        <th>МБ</th>
+        <th></th>
+      </tr>
+    </table>
+    <video id="video" controls></video>
+    <script type="module" src="/src/export/dev/main.ts"></script>
+  </body>
+</html>

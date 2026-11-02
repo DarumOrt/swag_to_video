@@ -1,0 +1,68 @@
+import { create } from 'zustand'
+import { DEFAULT_OUTPUT, type OutputSettings, type Timeline } from '@/shared'
+
+/**
+ * Low-frequency app state. High-frequency values (playhead, audio frames) live in `playback.ts`
+ * and are pushed to the DOM/canvas imperatively, bypassing React renders.
+ */
+
+export interface TrackInfo {
+  file: File
+  name: string
+  /** Object URL for the <audio> element; revoked when the track is replaced. */
+  url: string
+  durationSec: number | null
+}
+
+export type AnalysisStatus = 'idle' | 'decoding' | 'analyzing' | 'ready' | 'error'
+
+export type ExportStatus = 'idle' | 'running' | 'done' | 'cancelled' | 'error'
+
+export interface ExportState {
+  status: ExportStatus
+  /** 0..1 */
+  progress: number
+  error: string | null
+}
+
+export interface AppState {
+  track: TrackInfo | null
+  analysis: { status: AnalysisStatus; error: string | null }
+  timeline: Timeline | null
+  output: OutputSettings
+  isPlaying: boolean
+  volume: number
+  muted: boolean
+  export: ExportState
+
+  setTrack: (track: TrackInfo | null) => void
+  setAnalysis: (status: AnalysisStatus, error?: string | null) => void
+  setTimeline: (timeline: Timeline | null) => void
+  setOutput: (output: OutputSettings) => void
+  setPlaying: (isPlaying: boolean) => void
+  setVolume: (volume: number) => void
+  setMuted: (muted: boolean) => void
+  setExport: (patch: Partial<ExportState>) => void
+}
+
+export const IDLE_EXPORT: ExportState = { status: 'idle', progress: 0, error: null }
+
+export const useAppStore = create<AppState>()((set) => ({
+  track: null,
+  analysis: { status: 'idle', error: null },
+  timeline: null,
+  output: DEFAULT_OUTPUT,
+  isPlaying: false,
+  volume: 0.8,
+  muted: false,
+  export: IDLE_EXPORT,
+
+  setTrack: (track) => set({ track }),
+  setAnalysis: (status, error = null) => set({ analysis: { status, error } }),
+  setTimeline: (timeline) => set({ timeline }),
+  setOutput: (output) => set({ output }),
+  setPlaying: (isPlaying) => set({ isPlaying }),
+  setVolume: (volume) => set({ volume, muted: false }),
+  setMuted: (muted) => set({ muted }),
+  setExport: (patch) => set((state) => ({ export: { ...state.export, ...patch } })),
+}))

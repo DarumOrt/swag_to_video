@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ML · Whisper prototype</title>
+    <style>
+      body {
+        font:
+          14px/1.4 system-ui,
+          sans-serif;
+        background: #111;
+        color: #ddd;
+        margin: 16px;
+      }
+      fieldset {
+        border: 1px solid #333;
+        margin: 0 0 12px;
+        padding: 8px 12px;
+      }
+      label {
+        margin-right: 12px;
+      }
+      button,
+      select,
+      input {
+        font: inherit;
+      }
+      table {
+        border-collapse: collapse;
+        margin: 8px 0;
+      }
+      td,
+      th {
+        border: 1px solid #333;
+        padding: 2px 6px;
+        text-align: left;
+        vertical-align: top;
+      }
+      .low {
+        color: #f88;
+      }
+      .mid {
+        color: #fc6;
+      }
+      #log {
+        white-space: pre-wrap;
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+        color: #9a9;
+      }
+      #words span {
+        display: inline-block;
+        margin: 0 4px 4px 0;
+        padding: 0 3px;
+        border-radius: 3px;
+        background: #222;
+      }
+      #words small {
+        color: #888;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Whisper prototype</h1>
+    <fieldset>
+      <legend>Модель</legend>
+      <label
+        >Модель
+        <select id="model"></select
+      ></label>
+      <label
+        >Устройство
+        <select id="device">
+          <option>webgpu</option>
+          <option>wasm</option>
+        </select></label
+      >
+      <label
+        >dtype
+        <select id="dtype"></select
+      ></label>
+      <button id="load">Загрузить</button>
+      <span id="loadStatus"></span>
+    </fieldset>
+    <fieldset>
+      <legend>Аудио</legend>
+      <input type="file" id="file" accept="audio/*" />
+      или URL <input id="url" size="40" placeholder="/test-media/track.mp3" />
+      <button id="sample">EN-речь (jfk.wav)</button>
+      <label>Начало, с <input id="from" type="number" value="0" style="width: 5em" /></label>
+      <label>Длина, с <input id="len" type="number" value="60" style="width: 5em" /></label>
+      <span id="audioStatus"></span>
+    </fieldset>
+    <fieldset>
+      <legend>Распознавание</legend>
+      <label
+        >Язык
+        <select id="lang">
+          <option>auto</option>
+          <option>ru</option>
+          <option>en</option>
+        </select></label
+      >
+      <button id="run">Распознать</button>
+      <button id="cancel">Отмена</button>
+      <span id="runStatus"></span>
+    </fieldset>
+    <fieldset>
+      <legend>Кэш</legend>
+      <button id="cacheList">Показать</button>
+      <span id="cacheStatus"></span>
+    </fieldset>
+    <h2>Прогоны</h2>
+    <table id="runs">
+      <thead>
+        <tr>
+          <th>модель</th>
+          <th>устр.</th>
+          <th>dtype</th>
+          <th>трек</th>
+          <th>язык</th>
+          <th>загрузка, с</th>
+          <th>скачано, МБ</th>
+          <th>аудио, с</th>
+          <th>распозн., с</th>
+          <th>с на 1 мин</th>
+          <th>слов</th>
+          <th>ср. увер.</th>
+          <th>отсеяно</th>
+          <th>флаги</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <button id="copy">Скопировать как Markdown</button>
+    <h2>Слова</h2>
+    <div id="words"></div>
+    <h2>Лог</h2>
+    <div id="log"></div>
+    <script type="module" src="/src/ml/dev/main.ts"></script>
+  </body>
+</html>

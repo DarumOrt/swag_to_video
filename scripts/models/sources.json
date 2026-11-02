@@ -1,0 +1,27 @@
+{
+  "$comment": "What publish_models.py mirrors to Hugging Face. Source revisions are pinned commit hashes. Edit, then re-run the script.",
+  "models": [
+    {
+      "id": "whisper-small-timestamped",
+      "task": "asr",
+      "target": "DarumOrt/whisper-small-timestamped-onnx",
+      "source": "onnx-community/whisper-small_timestamped",
+      "sourceRevision": "65caa70f294b46e1c33ff820aae6b16d048ab818",
+      "upstream": "openai/whisper-small",
+      "license": "apache-2.0",
+      "files": [
+        "config.json",
+        "generation_config.json",
+        "preprocessor_config.json",
+        "tokenizer.json",
+        "tokenizer_config.json",
+        "onnx/encoder_model.onnx",
+        "onnx/encoder_model_fp16.onnx",
+        "onnx/encoder_model_quantized.onnx",
+        "onnx/decoder_model_merged_q4.onnx",
+        "onnx/decoder_model_merged_q4f16.onnx",
+        "onnx/decoder_model_merged_quantized.onnx"
+      ]
+    }
+  ]
+}
